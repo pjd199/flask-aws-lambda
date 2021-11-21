@@ -89,3 +89,4 @@ ENV/
 .ropeproject
 
 .vscode/
+http_api_vs_rest_api/
