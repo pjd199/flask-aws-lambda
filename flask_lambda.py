@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2016 Matt Martz
+# Copyright 2021 Nik Ho
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -15,65 +15,92 @@
 #    under the License.
 
 import sys
-
-try:
-    from urllib import urlencode
-except ImportError:
-    from urllib.parse import urlencode
-
+import base64
+from urllib.parse import urlencode
 from flask import Flask
-
-try:
-    from cStringIO import StringIO
-except ImportError:
-    try:
-        from StringIO import StringIO
-    except ImportError:
-        from io import StringIO
-
-from werkzeug.wrappers import BaseRequest
+from io import StringIO
+from werkzeug.wrappers import Request
 
 
-__version__ = '0.0.4'
+__version__ = '1.0.0'
 
 
-def make_environ(event):
-    environ = {}
+def make_wsgi_environ() -> dict:
+    """Default environs object."""
+    return {
+        'HTTP_HOST': '',
+        'HTTP_X_FORWARDED_PORT': '',
+        'HTTP_X_FORWARDED_PROTO': '',
+        'SCRIPT_NAME': '',
+        'wsgi.version': (1, 0),
+        'wsgi.errors': sys.stderr,
+        'wsgi.multithread': False,
+        'wsgi.run_once': True,
+        'wsgi.multiprocess': False
+    }
 
-    for hdr_name, hdr_value in event['headers'].items():
-        hdr_name = hdr_name.replace('-', '_').upper()
-        if hdr_name in ['CONTENT_TYPE', 'CONTENT_LENGTH']:
-            environ[hdr_name] = hdr_value
-            continue
 
-        http_hdr_name = 'HTTP_%s' % hdr_name
-        environ[http_hdr_name] = hdr_value
-
+def make_v1_environ(event: dict, environ: dict):
+    """
+    Create environ object from REST API Gateway event.
+    
+    Note: This function mutates the incoming eviron object.
+    """
     qs = event['queryStringParameters']
-
     environ['REQUEST_METHOD'] = event['httpMethod']
     environ['PATH_INFO'] = event['path']
     environ['QUERY_STRING'] = urlencode(qs) if qs else ''
     environ['REMOTE_ADDR'] = event['requestContext']['identity']['sourceIp']
-    environ['HOST'] = '%(HTTP_HOST)s:%(HTTP_X_FORWARDED_PORT)s' % environ
-    environ['SCRIPT_NAME'] = ''
+    environ['SERVER_PROTOCOL'] = event['requestContext']['protocol']
 
-    environ['SERVER_PORT'] = environ['HTTP_X_FORWARDED_PORT']
-    environ['SERVER_PROTOCOL'] = 'HTTP/1.1'
 
+def make_v2_environ(event: dict, environ: dict):
+    """
+    Create environ object from HTTP API Gateway event.
+    
+    Note: This function mutates the incoming eviron object.
+    """
+    qs = event['queryStringParameters']
+    environ['REQUEST_METHOD'] = event['requestContext']['http']['method']
+    environ['PATH_INFO'] = event['requestContext']['http']['path']
+    environ['QUERY_STRING'] = urlencode(qs) if qs else ''
+    environ['REMOTE_ADDR'] = event['requestContext']['http']['sourceIp']
+    environ['SERVER_PROTOCOL'] = event['requestContext']['http']['protocol']
+
+
+def make_environ(event):
+    # get the standard base set of environ properties
+    environ = make_wsgi_environ()
+
+    # set headers from event
+    if event['headers'] is not None:
+        for hdr_name, hdr_value in event['headers'].items():
+            hdr_name = hdr_name.replace('-', '_').upper()
+            if hdr_name in ['CONTENT_TYPE', 'CONTENT_LENGTH']:
+                environ[hdr_name] = hdr_value
+                continue
+            # prefix HTTP to all other headers
+            http_hdr_name = 'HTTP_%s' % hdr_name
+            environ[http_hdr_name] = hdr_value
+
+    # make environ specifically from REST or HTTP gateway events
+    # the properties of the event object is slightly different in both gateways
+    if event['version'] == '1.0':
+        make_v1_environ(event, environ)
+    else:
+        make_v2_environ(event, environ)
+
+    # check if this is present in requests with no body
     environ['CONTENT_LENGTH'] = str(
         len(event['body']) if event['body'] else ''
     )
-
+    environ['SERVER_PORT'] = environ['HTTP_X_FORWARDED_PORT']
     environ['wsgi.url_scheme'] = environ['HTTP_X_FORWARDED_PROTO']
     environ['wsgi.input'] = StringIO(event['body'] or '')
-    environ['wsgi.version'] = (1, 0)
-    environ['wsgi.errors'] = sys.stderr
-    environ['wsgi.multithread'] = False
-    environ['wsgi.run_once'] = True
-    environ['wsgi.multiprocess'] = False
 
-    BaseRequest(environ)
+    # using werkzeug.wrappers.Request instead of BaseRequest
+    # as BaseRequest has a deprecation warning for next version
+    Request(environ)
 
     return environ
 
@@ -88,23 +115,37 @@ class LambdaResponse(object):
         self.response_headers = dict(response_headers)
 
 
-class FlaskLambda(Flask):
+class FlaskAwsLambda(Flask):
     def __call__(self, event, context):
-        if 'httpMethod' not in event:
+        if 'version' not in event:
             # In this "context" `event` is `environ` and
             # `context` is `start_response`, meaning the request didn't
             # occur via API Gateway and Lambda
-            return super(FlaskLambda, self).__call__(event, context)
+            return super(FlaskAwsLambda, self).__call__(event, context)
 
         response = LambdaResponse()
 
-        body = next(self.wsgi_app(
+        # b''.join = fix for next stopIterator error
+        # https://github.com/sivel/flask-lambda/pull/10/files
+        body = b''.join(self.wsgi_app(
             make_environ(event),
             response.start_response
         ))
 
-        return {
+        lamdba_response = {
             'statusCode': response.status,
             'headers': response.response_headers,
-            'body': body
+            'body': body,
+            'isBase64Encoded': False
         }
+
+        content_type = response.response_headers['Content-Type']
+        if 'text' not in content_type \
+                and 'json' not in content_type \
+                and 'xml' not in content_type \
+                and 'javascript' not in content_type \
+                and 'charset=' not in content_type:
+            lamdba_response['body'] = base64.b64encode(body).decode('utf-8')
+            lamdba_response['isBase64Encoded'] = True
+
+        return lamdba_response
