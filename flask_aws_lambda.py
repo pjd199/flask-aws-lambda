@@ -22,7 +22,7 @@ from io import StringIO
 from werkzeug.wrappers import Request
 
 
-__version__ = '1.0.0'
+__version__ = '1.0.1'
 
 
 def make_wsgi_environ() -> dict:

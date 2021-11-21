@@ -73,6 +73,7 @@ setup(
     author='Nik Ho',
     author_email='codeschwert@protonmail.com',
     url='https://github.com/CodeSchwert/flask-aws-lambda',
+    download_url='https://github.com/CodeSchwert/flask-aws-lambda/archive/refs/tags/v1.0.1.tar.gz',
     license='Apache License, Version 2.0',
     py_modules=['flask_aws_lambda'],
     install_requires=requirements,
