@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright 2016 Matt Martz
+# Copyright 2021 Nik Ho
 # All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -63,17 +63,18 @@ except:
 
 
 setup(
-    name='flask-lambda',
-    version=find_version('flask_lambda.py'),
+    name='flask-aws-lambda',
+    version=find_version('flask_aws_lambda.py'),
     description=('Python module to make Flask compatible with AWS Lambda for '
-                 'creating RESTful applications'),
+                 'creating RESTful applications. Compatible with both REST '
+                 'and HTTP API gateways.'),
     long_description=long_description,
     keywords='flask aws amazon lambda',
-    author='Matt Martz',
-    author_email='matt@sivel.net',
-    url='https://github.com/sivel/flask-lambda',
+    author='Nik Ho',
+    author_email='codeschwert@protonmail.com',
+    url='https://github.com/CodeSchwert/flask-aws-lambda',
     license='Apache License, Version 2.0',
-    py_modules=['flask_lambda'],
+    py_modules=['flask_aws_lambda'],
     install_requires=requirements,
     classifiers=[
         'Development Status :: 4 - Beta',
