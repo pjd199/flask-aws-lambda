@@ -92,7 +92,7 @@ def make_environ(event):
 
     # check if this is present in requests with no body
     environ['CONTENT_LENGTH'] = str(
-        len(event['body']) if event['body'] else ''
+        len(event['body']) if 'body' in event else ''
     )
     environ['SERVER_PORT'] = environ['HTTP_X_FORWARDED_PORT']
     environ['wsgi.url_scheme'] = environ['HTTP_X_FORWARDED_PROTO']
