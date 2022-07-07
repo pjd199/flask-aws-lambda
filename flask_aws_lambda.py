@@ -96,7 +96,7 @@ def make_environ(event):
     )
     environ['SERVER_PORT'] = environ['HTTP_X_FORWARDED_PORT']
     environ['wsgi.url_scheme'] = environ['HTTP_X_FORWARDED_PROTO']
-    environ['wsgi.input'] = StringIO(event['body'] or '')
+    environ['wsgi.input'] = StringIO(event['body'] if 'body' in event else '')
 
     # using werkzeug.wrappers.Request instead of BaseRequest
     # as BaseRequest has a deprecation warning for next version
