@@ -60,7 +60,7 @@ def make_v2_environ(event: dict, environ: dict):
     
     Note: This function mutates the incoming eviron object.
     """
-    qs = event['queryStringParameters']
+    qs = event['queryStringParameters'] if 'queryStringParameters' in event else None
     environ['REQUEST_METHOD'] = event['requestContext']['http']['method']
     environ['PATH_INFO'] = event['requestContext']['http']['path']
     environ['QUERY_STRING'] = urlencode(qs) if qs else ''
