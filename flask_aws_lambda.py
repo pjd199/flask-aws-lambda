@@ -23,7 +23,7 @@ from urllib.parse import urlencode
 from flask import Flask
 from werkzeug.wrappers import Request
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 
 
 def make_wsgi_environ() -> Dict[str, Any]:
