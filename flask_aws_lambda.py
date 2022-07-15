@@ -16,7 +16,7 @@
 
 import base64
 import sys
-from io import StringIO
+from io import BytesIO, StringIO
 from typing import Any, Dict
 from urllib.parse import urlencode
 
@@ -91,11 +91,22 @@ def make_environ(event: Dict[str, Any]):
     else:
         make_v2_environ(event, environ)
 
-    # check if this is present in requests with no body
-    environ["CONTENT_LENGTH"] = str(len(event["body"]) if "body" in event else "")
+    # add the port and protocol
     environ["SERVER_PORT"] = environ["HTTP_X_FORWARDED_PORT"]
     environ["wsgi.url_scheme"] = environ["HTTP_X_FORWARDED_PROTO"]
-    environ["wsgi.input"] = StringIO(event["body"] if "body" in event else "")
+
+    # add the body, if there is one, and base64 decode if needed
+    if "body" in event:
+        if event["isBase64Encoded"]:
+            body = base64.b64decode(event["body"])
+            environ["CONTENT_LENGTH"] = str(len(body))
+            environ["wsgi.input"] = BytesIO(body)
+        else:
+            environ["CONTENT_LENGTH"] = str(len(event["body"]))
+            environ["wsgi.input"] = StringIO(event["body"])
+    else:
+        environ["CONTENT_LENGTH"] = ""
+        environ["wsgi.input"] = ""
 
     # using werkzeug.wrappers.Request instead of BaseRequest
     # as BaseRequest has a deprecation warning for next version
